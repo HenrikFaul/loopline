@@ -9,8 +9,18 @@ data class Cell(val x: Int, val y: Int)
 enum class Move { NONE, STARTED, EXTENDED, UNDONE }
 
 /**
+ * The win condition for a level.
+ *  - PATH:     visit every dot once (open line).
+ *  - ENDPOINT: visit every dot once, starting and finishing on the two marked dots.
+ *  - LOOP:     visit every dot once and close the line back to the start (circuit).
+ * All families share the same draw interaction and the non-crossing constraint.
+ */
+enum class RuleType { PATH, ENDPOINT, LOOP }
+
+/**
  * Immutable description of a level: the set of dots and one guaranteed-valid
  * solution path (used for hints). [solution] holds dot indices in visiting order.
+ * For LOOP levels the solution is a cycle (its last dot is adjacent to its first).
  */
 class Level(
     val number: Int,
@@ -18,9 +28,16 @@ class Level(
     val rows: Int,
     val dots: List<Cell>,
     val solution: List<Int>,
-    val isDaily: Boolean = false
+    val isDaily: Boolean = false,
+    val ruleType: RuleType = RuleType.PATH
 ) {
     val size: Int get() = dots.size
+
+    /** For ENDPOINT levels, the two dots the line must begin/finish on (else -1). */
+    val requiredStart: Int
+        get() = if (ruleType == RuleType.ENDPOINT && solution.isNotEmpty()) solution.first() else -1
+    val requiredEnd: Int
+        get() = if (ruleType == RuleType.ENDPOINT && solution.isNotEmpty()) solution.last() else -1
 
     private val indexByCell = HashMap<Long, Int>(dots.size * 2)
 
@@ -39,7 +56,8 @@ class Level(
  * Mutable game state for one level. Enforces the rules:
  *  - every dot used at most once,
  *  - consecutive dots must be grid-neighbours (8 directions),
- *  - the line may not cross itself (two diagonals of the same cell).
+ *  - the line may not cross itself (two diagonals of the same cell),
+ *  - plus the level's [RuleType] win condition.
  */
 class BoardModel(val level: Level) {
 
@@ -50,7 +68,25 @@ class BoardModel(val level: Level) {
     val headIndex: Int get() = if (path.isEmpty()) -1 else path[path.size - 1]
     val startIndex: Int get() = if (path.isEmpty()) -1 else path[0]
     val connectedCount: Int get() = path.size
-    val isComplete: Boolean get() = path.size == level.size && level.size > 0
+
+    val isComplete: Boolean
+        get() {
+            if (level.size == 0 || path.size != level.size) return false
+            return when (level.ruleType) {
+                RuleType.PATH -> true
+                RuleType.ENDPOINT -> {
+                    val s = startIndex
+                    val h = headIndex
+                    (s == level.requiredStart && h == level.requiredEnd) ||
+                        (s == level.requiredEnd && h == level.requiredStart)
+                }
+                RuleType.LOOP -> areAdjacent(headIndex, startIndex) && !crosses(headIndex, startIndex)
+            }
+        }
+
+    /** True while a LOOP still needs its closing segment drawn (all dots placed). */
+    val loopReadyToClose: Boolean
+        get() = level.ruleType == RuleType.LOOP && path.size == level.size && isComplete
 
     fun isInPath(i: Int): Boolean = i in 0 until level.size && inPath[i]
 
@@ -72,6 +108,7 @@ class BoardModel(val level: Level) {
     }
 
     fun areAdjacent(a: Int, b: Int): Boolean {
+        if (a < 0 || b < 0) return false
         val ca = level.dots[a]
         val cb = level.dots[b]
         val dx = abs(ca.x - cb.x)
@@ -81,6 +118,7 @@ class BoardModel(val level: Level) {
 
     /** A diagonal move crosses the line only if the cell's other diagonal is already drawn. */
     private fun crosses(a: Int, b: Int): Boolean {
+        if (a < 0 || b < 0) return false
         val ca = level.dots[a]
         val cb = level.dots[b]
         if (abs(ca.x - cb.x) == 1 && abs(ca.y - cb.y) == 1) {
@@ -93,17 +131,27 @@ class BoardModel(val level: Level) {
 
     fun canExtendTo(to: Int): Boolean {
         val head = headIndex
-        if (head < 0) return true
+        if (head < 0) return canStartAt(to)
         if (inPath[to]) return false
         if (!areAdjacent(head, to)) return false
         if (crosses(head, to)) return false
         return true
     }
 
+    /** ENDPOINT levels may only begin on one of the two marked dots. */
+    private fun canStartAt(to: Int): Boolean {
+        return if (level.ruleType == RuleType.ENDPOINT) {
+            to == level.requiredStart || to == level.requiredEnd
+        } else {
+            true
+        }
+    }
+
     /** Drives the line in response to the finger landing on dot [to]. */
     fun moveTo(to: Int): Move {
         val head = headIndex
         if (head < 0) {
+            if (!canStartAt(to)) return Move.NONE
             push(to)
             return Move.STARTED
         }

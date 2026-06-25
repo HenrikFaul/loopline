@@ -5,19 +5,35 @@ import kotlin.math.roundToInt
 import kotlin.random.Random
 
 /**
- * Procedurally generates deterministic levels. Paths are traced with a
- * non-backtracking Warnsdorff heuristic (always step to the neighbour with the
- * fewest onward moves), which produces long, organic, non-crossing paths in
- * O(cells) time — so generation is always fast and can never hang the UI thread.
- * The traced path is itself a guaranteed solution, so every level is solvable.
+ * Procedurally generates deterministic levels across several rule families.
+ *
+ * PATH / ENDPOINT levels are traced with a non-backtracking Warnsdorff heuristic
+ * (always step to the neighbour with the fewest onward moves), producing long,
+ * organic, non-crossing paths in O(cells) time — generation is always fast and
+ * can never hang the UI thread. LOOP levels use an explicit, provably-correct
+ * grid Hamiltonian-cycle construction. Every level's traced solution is stored,
+ * so every level is guaranteed solvable.
  */
 object LevelGenerator {
 
     private val DX = intArrayOf(1, -1, 0, 0, 1, 1, -1, -1)
     private val DY = intArrayOf(0, 0, 1, -1, 1, -1, 1, -1)
 
+    /** Decides which rule family a classic level uses. Early levels teach PATH. */
+    fun ruleFor(number: Int): RuleType = when {
+        number <= 4 -> RuleType.PATH
+        number % 9 == 0 -> RuleType.LOOP
+        number % 5 == 0 -> RuleType.ENDPOINT
+        else -> RuleType.PATH
+    }
+
     fun forLevel(number: Int): Level {
         val safeNumber = number.coerceAtLeast(1)
+        val rule = ruleFor(safeNumber)
+        val seed = safeNumber.toLong() * 1_103_515_245L + 12_345L
+        if (rule == RuleType.LOOP) {
+            return buildLoop(safeNumber, seed, isDaily = false)
+        }
         val size = when {
             safeNumber <= 3 -> 3
             safeNumber <= 8 -> 4
@@ -30,21 +46,20 @@ object LevelGenerator {
             safeNumber <= 3 -> safeNumber + 3 // 4, 5, 6
             else -> (cap * (0.5 + (safeNumber - 3) * 0.035)).roundToInt()
         }.coerceIn(4, cap)
-        val seed = safeNumber.toLong() * 1_103_515_245L + 12_345L
-        return build(safeNumber, size, size, desired, seed, isDaily = false)
+        return build(safeNumber, size, size, desired, seed, isDaily = false, ruleType = rule)
     }
 
     fun daily(epochDay: Long): Level {
         val size = 5
         val cap = size * size
         val seed = epochDay * 2_654_435_761L + 7L
-        return build(-1, size, size, cap, seed, isDaily = true)
+        return build(-1, size, size, cap, seed, isDaily = true, ruleType = RuleType.PATH)
     }
 
     /** A tiny hard-coded square level used as a last-resort fallback. */
     fun fallback(isDaily: Boolean = false): Level {
         val dots = listOf(Cell(0, 0), Cell(1, 0), Cell(1, 1), Cell(0, 1))
-        return Level(if (isDaily) -1 else 1, 2, 2, dots, listOf(0, 1, 2, 3), isDaily)
+        return Level(if (isDaily) -1 else 1, 2, 2, dots, listOf(0, 1, 2, 3), isDaily, RuleType.PATH)
     }
 
     private fun build(
@@ -53,7 +68,8 @@ object LevelGenerator {
         rows: Int,
         desired: Int,
         seed: Long,
-        isDaily: Boolean
+        isDaily: Boolean,
+        ruleType: RuleType
     ): Level {
         return try {
             val rnd = Random(seed)
@@ -78,10 +94,55 @@ object LevelGenerator {
             val maxY = cells.maxOf { it.y }
             val dots = cells.map { Cell(it.x - minX, it.y - minY) }
 
-            Level(number, maxX - minX + 1, maxY - minY + 1, dots, dots.indices.toList(), isDaily)
+            Level(
+                number, maxX - minX + 1, maxY - minY + 1,
+                dots, dots.indices.toList(), isDaily, ruleType
+            )
         } catch (e: Throwable) {
             fallback(isDaily)
         }
+    }
+
+    /** Builds a LOOP level: dots fill a small grid, solution is a Hamiltonian cycle. */
+    private fun buildLoop(number: Int, seed: Long, isDaily: Boolean): Level {
+        return try {
+            val rnd = Random(seed)
+            val rows = if (number <= 36) 4 else 6 // must be even
+            val cols = (3 + number / 12 + rnd.nextInt(2)).coerceIn(3, 6)
+            val cycle = hamiltonCycle(rows, cols)
+            val dots = cycle.map { Cell(it % cols, it / cols) }
+            Level(number, cols, rows, dots, dots.indices.toList(), isDaily, RuleType.LOOP)
+        } catch (e: Throwable) {
+            fallback(isDaily)
+        }
+    }
+
+    /**
+     * Explicit Hamiltonian cycle on a [rows] x [cols] grid using orthogonal moves
+     * (so it is always non-crossing). Requires rows even and cols >= 2. Returns the
+     * cell ids (y*cols + x) in visiting order; the last cell is adjacent to the first.
+     *
+     * Shape: a full top row, a boustrophedon body over columns 1..cols-1, and the
+     * left column (col 0) used as the return rail back up to the start.
+     */
+    private fun hamiltonCycle(rows: Int, cols: Int): IntArray {
+        val seq = ArrayList<Int>(rows * cols)
+        fun id(x: Int, y: Int) = y * cols + x
+
+        // top row, left -> right
+        for (x in 0 until cols) seq.add(id(x, 0))
+        // body rows 1..rows-1 over columns 1..cols-1, snaking
+        for (r in 1 until rows) {
+            if (r % 2 == 1) {
+                for (x in cols - 1 downTo 1) seq.add(id(x, r))
+            } else {
+                for (x in 1 until cols) seq.add(id(x, r))
+            }
+        }
+        // step into the left rail and climb back up to just below the start
+        seq.add(id(0, rows - 1))
+        for (y in rows - 2 downTo 1) seq.add(id(0, y))
+        return seq.toIntArray()
     }
 
     private fun warnsdorffWalk(start: Int, cols: Int, rows: Int, rnd: Random): IntArray {

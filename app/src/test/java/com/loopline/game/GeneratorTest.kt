@@ -4,9 +4,11 @@ import com.loopline.game.game.BoardModel
 import com.loopline.game.game.Level
 import com.loopline.game.game.LevelGenerator
 import com.loopline.game.game.Move
+import com.loopline.game.game.RuleType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.abs
 
 /**
  * Pure-JVM tests (no Android runtime). They verify that every generated level is
@@ -57,6 +59,40 @@ class GeneratorTest {
     fun fallbackIsValid() {
         validate(LevelGenerator.fallback(false))
         validate(LevelGenerator.fallback(true))
+    }
+
+    @Test
+    fun allRuleFamiliesAppearAndAreSolvable() {
+        var path = 0
+        var endpoint = 0
+        var loop = 0
+        for (n in 1..120) {
+            val lvl = LevelGenerator.forLevel(n)
+            validate(lvl) // replays the stored solution under the level's own rule
+            when (lvl.ruleType) {
+                RuleType.PATH -> path++
+                RuleType.ENDPOINT -> {
+                    endpoint++
+                    assertTrue(
+                        "endpoint markers must be two distinct dots",
+                        lvl.requiredStart >= 0 && lvl.requiredEnd >= 0 &&
+                            lvl.requiredStart != lvl.requiredEnd
+                    )
+                }
+                RuleType.LOOP -> {
+                    loop++
+                    val a = lvl.dots[lvl.solution.first()]
+                    val b = lvl.dots[lvl.solution.last()]
+                    assertTrue(
+                        "loop solution must close (ends adjacent)",
+                        abs(a.x - b.x) <= 1 && abs(a.y - b.y) <= 1 && (a != b)
+                    )
+                }
+            }
+        }
+        assertTrue("expected some PATH levels", path > 0)
+        assertTrue("expected some ENDPOINT levels", endpoint > 0)
+        assertTrue("expected some LOOP levels", loop > 0)
     }
 
     @Test

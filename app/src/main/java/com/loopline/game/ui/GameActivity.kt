@@ -16,6 +16,7 @@ import com.loopline.game.databinding.ActivityGameBinding
 import com.loopline.game.game.GameView
 import com.loopline.game.game.Level
 import com.loopline.game.game.LevelGenerator
+import com.loopline.game.game.RuleType
 import com.loopline.game.util.Haptics
 import com.loopline.game.util.LineThemes
 import com.loopline.game.util.Prefs
@@ -105,6 +106,13 @@ class GameActivity : AppCompatActivity(), GameView.Listener {
         } else {
             getString(R.string.level_label, number)
         }
+        binding.tvRule.setText(
+            when (level.ruleType) {
+                RuleType.PATH -> R.string.rule_path
+                RuleType.ENDPOINT -> R.string.rule_endpoint
+                RuleType.LOOP -> R.string.rule_loop
+            }
+        )
         binding.tvCoins.text = prefs.coins.toString()
         binding.tvProgress.text = "0 / ${level.size}"
         resetTimer()

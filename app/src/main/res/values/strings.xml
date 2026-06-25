@@ -13,6 +13,10 @@
     <string name="daily_label">DAILY CHALLENGE</string>
     <string name="time_label">TIME</string>
 
+    <string name="rule_path">CONNECT EVERY DOT</string>
+    <string name="rule_endpoint">GREEN → PINK · USE EVERY DOT</string>
+    <string name="rule_loop">CLOSE THE LOOP · EVERY DOT</string>
+
     <string name="level_complete">LEVEL COMPLETE!</string>
     <string name="new_best">NEW BEST!</string>
     <string name="next">NEXT</string>

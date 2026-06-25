@@ -90,6 +90,12 @@ class GameView @JvmOverloads constructor(
         style = Paint.Style.STROKE
         strokeWidth = dp(2f)
     }
+    private val endpointPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = dp(3.2f)
+    }
+    private val endpointStartColor = ContextCompat.getColor(context, R.color.accent_green)
+    private val endpointEndColor = ContextCompat.getColor(context, R.color.accent_pink)
 
     private val linePath = Path()
 
@@ -327,6 +333,18 @@ class GameView @JvmOverloads constructor(
             canvas.drawPath(linePath, linePaint)
         }
 
+        // LOOP: draw the closing segment once the circuit is complete
+        if (m.level.ruleType == RuleType.LOOP && m.isComplete && m.path.size >= 2) {
+            val h = m.headIndex
+            val s = m.startIndex
+            glowPaint.color = withAlpha(lineColor, 70)
+            glowPaint.strokeWidth = lineW * 2.6f
+            canvas.drawLine(cx(h), cy(h), cx(s), cy(s), glowPaint)
+            linePaint.color = lineColor
+            linePaint.strokeWidth = lineW
+            canvas.drawLine(cx(h), cy(h), cx(s), cy(s), linePaint)
+        }
+
         // rubber band from head to finger while drawing
         if (dragging && !m.isComplete && m.headIndex >= 0) {
             rubberPaint.color = withAlpha(lineColor, 130)
@@ -341,6 +359,17 @@ class GameView @JvmOverloads constructor(
             var r = dotR
             if (i == m.headIndex && !m.isComplete) r *= (1f + 0.18f * breathe)
             if (i == popDot) r *= (1f + 0.5f * popProgress)
+
+            // ENDPOINT levels mark the two dots the line must begin/finish on.
+            if (m.level.ruleType == RuleType.ENDPOINT) {
+                if (i == m.level.requiredStart) {
+                    endpointPaint.color = endpointStartColor
+                    canvas.drawCircle(x, y, dotR * 1.95f, endpointPaint)
+                } else if (i == m.level.requiredEnd) {
+                    endpointPaint.color = endpointEndColor
+                    canvas.drawCircle(x, y, dotR * 1.95f, endpointPaint)
+                }
+            }
 
             if (m.isInPath(i)) {
                 // start dot gets an extra ring
