@@ -134,20 +134,29 @@ jobs:
       - name: Scan logcat for crashes
         run: |
           f="logcat-api${{ matrix.api-level }}.txt"
-          echo "=== app-related logcat (api ${{ matrix.api-level }}) ==="
-          grep -nE "loopline|AndroidRuntime|FATAL|ANR in" "$f" || true
-          echo "=== verdict ==="
-          if grep -q "FATAL EXCEPTION" "$f"; then
-            echo "::error::App crashed on the game screen (api ${{ matrix.api-level }})"
-            grep -B3 -A100 "FATAL EXCEPTION" "$f"
+          # IMPORTANT: scope crash detection to OUR package. CI emulators routinely
+          # log unrelated system crashes (e.g. com.google.android.permissioncontroller),
+          # which must not fail our smoke test. AndroidRuntime prints "Process: <pkg>"
+          # only inside a crash dump, so that line uniquely identifies our crashes.
+          echo "=== crash/ANR markers in logcat (any process) ==="
+          grep -nE "FATAL EXCEPTION|AndroidRuntime: Process:|ANR in |>>> com" "$f" || true
+          echo "=== verdict (scoped to com.loopline.game) ==="
+          if grep -qE "AndroidRuntime: Process: com\.loopline\.game" "$f"; then
+            echo "::error::Loopline crashed on the game screen (api ${{ matrix.api-level }})"
+            grep -B1 -A40 "AndroidRuntime: Process: com.loopline.game" "$f"
             exit 1
           fi
-          if grep -qE "ANR in com.loopline|signal 11 \(SIGSEGV\)|signal 6 \(SIGABRT\)" "$f"; then
-            echo "::error::ANR or native crash (api ${{ matrix.api-level }})"
-            grep -B3 -A80 -E "ANR in|SIGSEGV|SIGABRT|backtrace" "$f"
+          if grep -q "ANR in com.loopline.game" "$f"; then
+            echo "::error::Loopline ANR (api ${{ matrix.api-level }})"
+            grep -B2 -A60 "ANR in com.loopline.game" "$f"
             exit 1
           fi
-          echo "No crash/ANR detected on the game screen (api ${{ matrix.api-level }})."
+          if grep -q ">>> com.loopline.game" "$f"; then
+            echo "::error::Loopline native crash (api ${{ matrix.api-level }})"
+            grep -B3 -A60 -E ">>> com.loopline.game|signal |backtrace" "$f" | head -n 80
+            exit 1
+          fi
+          echo "No Loopline crash/ANR detected (api ${{ matrix.api-level }})."
 
       - name: Upload emulator logcat
         if: always()
