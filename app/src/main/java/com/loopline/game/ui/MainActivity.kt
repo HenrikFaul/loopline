@@ -7,6 +7,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.loopline.game.R
 import com.loopline.game.databinding.ActivityMainBinding
 import com.loopline.game.util.Prefs
+import com.loopline.game.util.setupEdgeToEdge
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -20,6 +21,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        setupEdgeToEdge(binding.root)
         prefs = Prefs(this)
 
         binding.btnPlay.setOnClickListener {

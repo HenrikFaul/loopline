@@ -8,6 +8,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.loopline.game.R
 import com.loopline.game.databinding.ActivitySettingsBinding
 import com.loopline.game.util.Prefs
+import com.loopline.game.util.setupEdgeToEdge
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -18,6 +19,7 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        setupEdgeToEdge(binding.root)
         prefs = Prefs(this)
 
         binding.btnBack.setOnClickListener { finish() }

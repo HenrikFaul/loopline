@@ -11,6 +11,7 @@ import com.loopline.game.R
 import com.loopline.game.databinding.ActivityLevelSelectBinding
 import com.loopline.game.databinding.ItemLevelBinding
 import com.loopline.game.util.Prefs
+import com.loopline.game.util.setupEdgeToEdge
 
 class LevelSelectActivity : AppCompatActivity() {
 
@@ -21,6 +22,7 @@ class LevelSelectActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityLevelSelectBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        setupEdgeToEdge(binding.root)
         prefs = Prefs(this)
 
         binding.btnBack.setOnClickListener { finish() }

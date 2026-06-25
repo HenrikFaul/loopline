@@ -20,6 +20,7 @@ import com.loopline.game.util.Haptics
 import com.loopline.game.util.LineThemes
 import com.loopline.game.util.Prefs
 import com.loopline.game.util.SoundManager
+import com.loopline.game.util.setupEdgeToEdge
 import java.time.LocalDate
 import java.util.Locale
 
@@ -49,6 +50,7 @@ class GameActivity : AppCompatActivity(), GameView.Listener {
         super.onCreate(savedInstanceState)
         binding = ActivityGameBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        setupEdgeToEdge(binding.root)
         prefs = Prefs(this)
         haptics = Haptics(this).also { it.enabled = prefs.hapticsOn }
         sound.enabled = prefs.soundOn
@@ -205,7 +207,8 @@ class GameActivity : AppCompatActivity(), GameView.Listener {
     // ---- timer ----
 
     private fun currentMs(): Long =
-        accumulatedMs + if (timerRunning) SystemClock.elapsedRealtime() - baseElapsed else 0L
+        accumulatedMs +
+            if (timerRunning) (SystemClock.elapsedRealtime() - baseElapsed).coerceAtLeast(0L) else 0L
 
     private fun resetTimer() {
         accumulatedMs = 0L

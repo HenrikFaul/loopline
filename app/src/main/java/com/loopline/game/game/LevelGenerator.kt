@@ -63,6 +63,10 @@ object LevelGenerator {
             attempts++
         }
 
+        // Defensive floor: guarantee at least a drawable two-dot line so the
+        // board is always valid even if generation degenerates.
+        if (bestWalk.size < 2) bestWalk = intArrayOf(0, 1)
+
         // Map cell ids -> Cell, cropped to the bounding box so the puzzle is centered.
         val cells = bestWalk.map { Cell(it % cols, it / cols) }
         val minX = cells.minOf { it.x }

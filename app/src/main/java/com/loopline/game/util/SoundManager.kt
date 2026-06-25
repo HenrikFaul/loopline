@@ -4,7 +4,9 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
-import java.util.concurrent.Executors
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.sin
@@ -19,7 +21,14 @@ class SoundManager {
     var enabled: Boolean = true
 
     private val sampleRate = 44100
-    private val executor = Executors.newSingleThreadExecutor()
+
+    // Single worker with a tiny bounded queue: during fast drawing we keep the
+    // most recent tones and drop the backlog so audio never lags behind play.
+    private val executor = ThreadPoolExecutor(
+        1, 1, 0L, TimeUnit.MILLISECONDS,
+        ArrayBlockingQueue(2),
+        ThreadPoolExecutor.DiscardOldestPolicy()
+    )
 
     // Pentatonic-ish semitone offsets so consecutive connects sound musical.
     private val scale = intArrayOf(0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24)
@@ -95,6 +104,7 @@ class SoundManager {
     }
 
     fun release() {
-        executor.shutdown()
+        enabled = false
+        executor.shutdownNow()
     }
 }
