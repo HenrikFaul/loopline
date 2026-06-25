@@ -1,5 +1,6 @@
 package com.loopline.game.ui
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
@@ -41,12 +42,28 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        maybeShowCrashReport()
         val levelsDone = (prefs.maxUnlocked - 1).coerceAtLeast(0)
         val score = levelsDone * 100 + prefs.totalStars * 50 + prefs.coins
         binding.tvBest.text = score.toString()
         binding.tvCoins.text = prefs.coins.toString()
         binding.tvDailyDate.text = LocalDate.now()
             .format(DateTimeFormatter.ofPattern("MMMM d", Locale.getDefault()))
+    }
+
+    /** If the previous run crashed, show the captured stack trace so it can be shared. */
+    private fun maybeShowCrashReport() {
+        val crash = prefs.lastCrash ?: return
+        prefs.lastCrash = null
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Crash report — please send this")
+            .setMessage(crash.take(4000))
+            .setPositiveButton("Copy") { _, _ ->
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("Loopline crash", crash))
+            }
+            .setNegativeButton("Dismiss", null)
+            .show()
     }
 
     private fun showHowTo() {

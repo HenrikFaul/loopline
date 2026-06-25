@@ -65,8 +65,20 @@ class Prefs(context: Context) {
         coins += amount
     }
 
+    /** Stack trace of the last uncaught crash (written by LooplineApp), or null. */
+    var lastCrash: String?
+        get() = sp.getString(KEY_LAST_CRASH, null)
+        set(value) {
+            val e = sp.edit()
+            if (value == null) e.remove(KEY_LAST_CRASH) else e.putString(KEY_LAST_CRASH, value)
+            e.apply()
+        }
+
     fun resetAll() {
+        // Preserve any pending crash report across a progress reset.
+        val crash = lastCrash
         sp.edit().clear().apply()
+        if (crash != null) lastCrash = crash
     }
 
     private fun starKey(level: Int) = "stars_$level"
@@ -79,5 +91,6 @@ class Prefs(context: Context) {
         private const val KEY_HAPTICS = "haptics_on"
         private const val KEY_THEME = "theme_index"
         private const val KEY_TOTAL_STARS = "total_stars"
+        private const val KEY_LAST_CRASH = "last_crash"
     }
 }
