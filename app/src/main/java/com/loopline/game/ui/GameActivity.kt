@@ -41,7 +41,10 @@ class GameActivity : AppCompatActivity(), GameView.Listener {
     private var accumulatedMs = 0L
     private val tick = object : Runnable {
         override fun run() {
-            binding.tvTime.text = formatTime(currentMs())
+            try {
+                binding.tvTime.text = formatTime(currentMs())
+            } catch (_: Throwable) {
+            }
             if (timerRunning) handler.postDelayed(this, 200)
         }
     }
@@ -84,10 +87,14 @@ class GameActivity : AppCompatActivity(), GameView.Listener {
     }
 
     private fun loadLevel(number: Int) {
-        level = if (isDaily) {
-            LevelGenerator.daily(LocalDate.now().toEpochDay())
-        } else {
-            LevelGenerator.forLevel(number)
+        level = try {
+            if (isDaily) {
+                LevelGenerator.daily(LocalDate.now().toEpochDay())
+            } else {
+                LevelGenerator.forLevel(number)
+            }
+        } catch (e: Throwable) {
+            LevelGenerator.fallback(isDaily)
         }
         completed = false
         binding.winOverlay.visibility = View.GONE

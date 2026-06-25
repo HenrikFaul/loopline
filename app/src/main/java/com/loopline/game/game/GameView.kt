@@ -301,6 +301,15 @@ class GameView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val m = model ?: return
+        // The render loop runs ~60x/s; a stray drawing exception must never crash
+        // the whole app, so a bad frame is skipped instead.
+        try {
+            drawBoard(canvas, m)
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun drawBoard(canvas: Canvas, m: BoardModel) {
         computeGeometry()
 
         // line + glow

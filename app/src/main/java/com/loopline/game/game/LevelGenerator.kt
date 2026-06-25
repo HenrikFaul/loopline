@@ -5,149 +5,146 @@ import kotlin.math.roundToInt
 import kotlin.random.Random
 
 /**
- * Procedurally generates deterministic levels. A level is built by tracing a
- * random self-avoiding, non-crossing walk over a grid; the visited cells become
- * the dots and the walk itself is stored as a guaranteed solution. Because every
- * level is derived from a real solution it is always completable.
+ * Procedurally generates deterministic levels. Paths are traced with a
+ * non-backtracking Warnsdorff heuristic (always step to the neighbour with the
+ * fewest onward moves), which produces long, organic, non-crossing paths in
+ * O(cells) time — so generation is always fast and can never hang the UI thread.
+ * The traced path is itself a guaranteed solution, so every level is solvable.
  */
 object LevelGenerator {
 
+    private val DX = intArrayOf(1, -1, 0, 0, 1, 1, -1, -1)
+    private val DY = intArrayOf(0, 0, 1, -1, 1, -1, 1, -1)
+
     fun forLevel(number: Int): Level {
+        val safeNumber = number.coerceAtLeast(1)
         val size = when {
-            number <= 3 -> 3
-            number <= 8 -> 4
-            number <= 16 -> 5
-            number <= 28 -> 6
+            safeNumber <= 3 -> 3
+            safeNumber <= 8 -> 4
+            safeNumber <= 16 -> 5
+            safeNumber <= 28 -> 6
             else -> 7
         }
         val cap = size * size
-        val target = when (number) {
-            1 -> 4
-            2 -> 5
-            3 -> 7
-            else -> {
-                val f = (0.5 + (number - 3) * 0.03).coerceAtMost(0.9)
-                (cap * f).roundToInt().coerceIn(6, cap)
-            }
-        }
-        val seed = number.toLong() * 1_103_515_245L + 12_345L
-        return build(number, size, size, target, seed, isDaily = false)
+        val desired = when {
+            safeNumber <= 3 -> safeNumber + 3 // 4, 5, 6
+            else -> (cap * (0.5 + (safeNumber - 3) * 0.035)).roundToInt()
+        }.coerceIn(4, cap)
+        val seed = safeNumber.toLong() * 1_103_515_245L + 12_345L
+        return build(safeNumber, size, size, desired, seed, isDaily = false)
     }
 
     fun daily(epochDay: Long): Level {
         val size = 5
         val cap = size * size
-        val target = (cap * 0.8).roundToInt()
         val seed = epochDay * 2_654_435_761L + 7L
-        return build(-1, size, size, target, seed, isDaily = true)
+        return build(-1, size, size, cap, seed, isDaily = true)
+    }
+
+    /** A tiny hard-coded square level used as a last-resort fallback. */
+    fun fallback(isDaily: Boolean = false): Level {
+        val dots = listOf(Cell(0, 0), Cell(1, 0), Cell(1, 1), Cell(0, 1))
+        return Level(if (isDaily) -1 else 1, 2, 2, dots, listOf(0, 1, 2, 3), isDaily)
     }
 
     private fun build(
         number: Int,
         cols: Int,
         rows: Int,
-        target: Int,
+        desired: Int,
         seed: Long,
         isDaily: Boolean
     ): Level {
-        val rnd = Random(seed)
-        val total = cols * rows
-        val want = target.coerceIn(3, total)
+        return try {
+            val rnd = Random(seed)
+            val total = cols * rows
+            var best = IntArray(0)
+            val starts = total.coerceAtMost(24).coerceAtLeast(1)
+            repeat(starts) {
+                val walk = warnsdorffWalk(rnd.nextInt(total), cols, rows, rnd)
+                if (walk.size > best.size) best = walk
+            }
 
-        var bestWalk: IntArray = IntArray(0)
-        var attempts = 0
-        while (attempts < 240 && bestWalk.size < want) {
-            val start = rnd.nextInt(total)
-            val walk = walk(start, want, cols, rows, rnd)
-            if (walk.size > bestWalk.size) bestWalk = walk
-            attempts++
+            if (best.size < 2) return fallback(isDaily)
+
+            val len = desired.coerceIn(2, best.size)
+            val chosen = if (best.size > len) best.copyOfRange(0, len) else best
+
+            // crop to bounding box so the puzzle is centered
+            val cells = chosen.map { Cell(it % cols, it / cols) }
+            val minX = cells.minOf { it.x }
+            val maxX = cells.maxOf { it.x }
+            val minY = cells.minOf { it.y }
+            val maxY = cells.maxOf { it.y }
+            val dots = cells.map { Cell(it.x - minX, it.y - minY) }
+
+            Level(number, maxX - minX + 1, maxY - minY + 1, dots, dots.indices.toList(), isDaily)
+        } catch (e: Throwable) {
+            fallback(isDaily)
         }
-
-        // Defensive floor: guarantee at least a drawable two-dot line so the
-        // board is always valid even if generation degenerates.
-        if (bestWalk.size < 2) bestWalk = intArrayOf(0, 1)
-
-        // Map cell ids -> Cell, cropped to the bounding box so the puzzle is centered.
-        val cells = bestWalk.map { Cell(it % cols, it / cols) }
-        val minX = cells.minOf { it.x }
-        val maxX = cells.maxOf { it.x }
-        val minY = cells.minOf { it.y }
-        val maxY = cells.maxOf { it.y }
-        val dots = cells.map { Cell(it.x - minX, it.y - minY) }
-        val solution = dots.indices.toList()
-
-        return Level(
-            number = number,
-            cols = maxX - minX + 1,
-            rows = maxY - minY + 1,
-            dots = dots,
-            solution = solution,
-            isDaily = isDaily
-        )
     }
 
-    private val DX = intArrayOf(1, -1, 0, 0, 1, 1, -1, -1)
-    private val DY = intArrayOf(0, 0, 1, -1, 1, -1, 1, -1)
-
-    /**
-     * Randomised DFS that returns a self-avoiding, non-crossing path of length
-     * [want] when possible, otherwise the longest path it found within a budget.
-     */
-    private fun walk(start: Int, want: Int, cols: Int, rows: Int, rnd: Random): IntArray {
+    private fun warnsdorffWalk(start: Int, cols: Int, rows: Int, rnd: Random): IntArray {
         val total = cols * rows
         val visited = BooleanArray(total)
         val edges = HashSet<Long>()
         val path = ArrayList<Int>(total)
-        var best = ArrayList<Int>()
-        var budget = 40_000
+        var cur = start
+        visited[cur] = true
+        path.add(cur)
 
-        fun id(x: Int, y: Int) = y * cols + x
-        fun edgeKey(a: Int, b: Int): Long {
-            val lo = minOf(a, b); val hi = maxOf(a, b)
-            return lo.toLong() * 100_003L + hi
-        }
-
-        fun crosses(cur: Int, nb: Int): Boolean {
-            val cx = cur % cols; val cy = cur / cols
-            val nx = nb % cols; val ny = nb / cols
-            if (abs(cx - nx) == 1 && abs(cy - ny) == 1) {
-                val o1 = id(cx, ny)
-                val o2 = id(nx, cy)
-                return edges.contains(edgeKey(o1, o2))
+        while (true) {
+            val cands = candidates(cur, cols, rows, visited, edges)
+            if (cands.isEmpty()) break
+            // Warnsdorff: pick the candidate with the fewest onward moves; random tie-break.
+            var bestDeg = Int.MAX_VALUE
+            val bestList = ArrayList<Int>(cands.size)
+            for (nb in cands) {
+                val deg = candidates(nb, cols, rows, visited, edges).size
+                when {
+                    deg < bestDeg -> { bestDeg = deg; bestList.clear(); bestList.add(nb) }
+                    deg == bestDeg -> bestList.add(nb)
+                }
             }
-            return false
+            val next = bestList[rnd.nextInt(bestList.size)]
+            edges.add(edgeKey(cur, next))
+            visited[next] = true
+            path.add(next)
+            cur = next
         }
+        return path.toIntArray()
+    }
 
-        fun dfs(cur: Int): Boolean {
-            visited[cur] = true
-            path.add(cur)
-            if (path.size > best.size) best = ArrayList(path)
-            if (path.size >= want) return true
-            if (budget-- <= 0) {
-                visited[cur] = false
-                path.removeAt(path.size - 1)
-                return false
+    /** Unvisited, in-bounds, non-crossing neighbours of [cur]. */
+    private fun candidates(
+        cur: Int,
+        cols: Int,
+        rows: Int,
+        visited: BooleanArray,
+        edges: HashSet<Long>
+    ): List<Int> {
+        val cx = cur % cols
+        val cy = cur / cols
+        val out = ArrayList<Int>(8)
+        for (d in 0 until 8) {
+            val nx = cx + DX[d]
+            val ny = cy + DY[d]
+            if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue
+            val nb = ny * cols + nx
+            if (visited[nb]) continue
+            if (abs(DX[d]) == 1 && abs(DY[d]) == 1) {
+                val o1 = cy * cols + nx // (nx, cy)
+                val o2 = ny * cols + cx // (cx, ny)
+                if (edges.contains(edgeKey(o1, o2))) continue
             }
-            val order = (0 until 8).toMutableList()
-            order.shuffle(rnd)
-            val cx = cur % cols; val cy = cur / cols
-            for (dir in order) {
-                val nx = cx + DX[dir]
-                val ny = cy + DY[dir]
-                if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue
-                val nb = id(nx, ny)
-                if (visited[nb] || crosses(cur, nb)) continue
-                val ek = edgeKey(cur, nb)
-                edges.add(ek)
-                if (dfs(nb)) return true
-                edges.remove(ek)
-            }
-            visited[cur] = false
-            path.removeAt(path.size - 1)
-            return false
+            out.add(nb)
         }
+        return out
+    }
 
-        dfs(start)
-        return if (path.size >= want) path.toIntArray() else best.toIntArray()
+    private fun edgeKey(a: Int, b: Int): Long {
+        val lo = minOf(a, b)
+        val hi = maxOf(a, b)
+        return lo.toLong() * 100_003L + hi
     }
 }

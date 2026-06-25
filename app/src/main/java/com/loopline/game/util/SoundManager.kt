@@ -73,33 +73,34 @@ class SoundManager {
             samples[i] = (v * Short.MAX_VALUE).toInt().toShort()
         }
 
-        val track = AudioTrack(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_GAME)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build(),
-            AudioFormat.Builder()
-                .setSampleRate(sampleRate)
-                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                .build(),
-            samples.size * 2,
-            AudioTrack.MODE_STATIC,
-            AudioManager.AUDIO_SESSION_ID_GENERATE
-        )
+        var track: AudioTrack? = null
         try {
+            track = AudioTrack(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_GAME)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build(),
+                AudioFormat.Builder()
+                    .setSampleRate(sampleRate)
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build(),
+                samples.size * 2,
+                AudioTrack.MODE_STATIC,
+                AudioManager.AUDIO_SESSION_ID_GENERATE
+            )
             track.write(samples, 0, samples.size)
             track.play()
             // Let the static buffer finish, then release.
             Thread.sleep(durationMs.toLong() + 30)
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             // Audio is best-effort; never crash gameplay because of it.
         } finally {
             try {
-                track.stop()
-            } catch (_: Exception) {
+                track?.stop()
+            } catch (_: Throwable) {
             }
-            track.release()
+            track?.release()
         }
     }
 
