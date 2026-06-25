@@ -85,6 +85,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [34, 35]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -107,39 +111,48 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Run Daily-Challenge smoke test on emulator
+      # NOTE: android-emulator-runner executes each `script` line as a separate
+      # `sh -c`, so the script must contain only single-line commands (no if/fi).
+      # The crash analysis happens in the following normal step instead.
+      - name: Launch Daily Challenge & capture logcat
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: ${{ matrix.api-level }}
           arch: x86_64
           target: google_apis
           profile: pixel_5
           disable-animations: false
           script: |
-            set -x
             adb install -r apks/loopline-debug.apk
             adb logcat -c
-            # Launch the daily challenge directly (GameActivity is exported in debug builds)
             adb shell am start -W -n com.loopline.game.debug/com.loopline.game.ui.GameActivity --ez extra_daily true
             sleep 12
-            adb logcat -d > logcat-full.txt
-            echo "=== scanning logcat for crashes ==="
-            if grep -q "FATAL EXCEPTION" logcat-full.txt; then
-              echo "::error::App crashed on the Daily Challenge screen"
-              grep -B3 -A80 "FATAL EXCEPTION" logcat-full.txt
-              exit 1
-            fi
-            if grep -qE "signal 11 \(SIGSEGV\)|signal 6 \(SIGABRT\)" logcat-full.txt; then
-              echo "::error::Native crash detected"
-              grep -B3 -A60 -E "F DEBUG|SIGSEGV|SIGABRT|backtrace" logcat-full.txt
-              exit 1
-            fi
-            echo "No crash detected after 12s on the Daily Challenge screen."
+            adb shell am start -W -n com.loopline.game.debug/com.loopline.game.ui.GameActivity --ei extra_level 12
+            sleep 8
+            adb logcat -d > logcat-api${{ matrix.api-level }}.txt
+
+      - name: Scan logcat for crashes
+        run: |
+          f="logcat-api${{ matrix.api-level }}.txt"
+          echo "=== app-related logcat (api ${{ matrix.api-level }}) ==="
+          grep -nE "loopline|AndroidRuntime|FATAL|ANR in" "$f" || true
+          echo "=== verdict ==="
+          if grep -q "FATAL EXCEPTION" "$f"; then
+            echo "::error::App crashed on the game screen (api ${{ matrix.api-level }})"
+            grep -B3 -A100 "FATAL EXCEPTION" "$f"
+            exit 1
+          fi
+          if grep -qE "ANR in com.loopline|signal 11 \(SIGSEGV\)|signal 6 \(SIGABRT\)" "$f"; then
+            echo "::error::ANR or native crash (api ${{ matrix.api-level }})"
+            grep -B3 -A80 -E "ANR in|SIGSEGV|SIGABRT|backtrace" "$f"
+            exit 1
+          fi
+          echo "No crash/ANR detected on the game screen (api ${{ matrix.api-level }})."
 
       - name: Upload emulator logcat
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: emulator-logcat
-          path: logcat-full.txt
+          name: emulator-logcat-${{ matrix.api-level }}
+          path: logcat-api${{ matrix.api-level }}.txt
           if-no-files-found: warn
