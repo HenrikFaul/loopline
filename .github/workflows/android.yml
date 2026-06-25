@@ -1,0 +1,70 @@
+name: Build Loopline APK
+
+on:
+  push:
+    branches:
+      - "claude/great-lamport-on5sx5"
+      - "main"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required SDK packages
+        run: |
+          yes | sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" || true
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Build release APK
+        continue-on-error: true
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Collect APKs
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/loopline-debug.apk
+          rel=$(find app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -n1)
+          if [ -n "$rel" ]; then cp "$rel" dist/loopline-release.apk; fi
+          ls -la dist
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: loopline-apks
+          path: dist/*.apk
+          if-no-files-found: error
+
+      - name: Publish Release with APK
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "build-${{ github.run_number }}"
+          name: "Loopline build #${{ github.run_number }}"
+          body: |
+            Automated build of the Loopline Android game.
+
+            Download **loopline-debug.apk**, enable "Install from unknown sources",
+            and install it on any Android 8.0+ device.
+          files: dist/*.apk
