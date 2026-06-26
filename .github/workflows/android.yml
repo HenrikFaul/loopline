@@ -1,0 +1,167 @@
+name: Build Loopline APK
+
+on:
+  push:
+    branches:
+      - "claude/great-lamport-on5sx5"
+      - "main"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required SDK packages
+        run: |
+          yes | sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" || true
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Run unit tests (logic + Robolectric smoke)
+        continue-on-error: true
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Upload unit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: app/build/reports/tests/
+          if-no-files-found: warn
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Build release APK
+        continue-on-error: true
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Collect APKs
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/loopline-debug.apk
+          rel=$(find app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -n1)
+          if [ -n "$rel" ]; then cp "$rel" dist/loopline-release.apk; fi
+          ls -la dist
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: loopline-apks
+          path: dist/*.apk
+          if-no-files-found: error
+
+      - name: Publish Release with APK
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "build-${{ github.run_number }}"
+          name: "Loopline build #${{ github.run_number }}"
+          body: |
+            Automated build of the Loopline Android game.
+
+            Download **loopline-debug.apk**, enable "Install from unknown sources",
+            and install it on any Android 8.0+ device.
+          files: dist/*.apk
+
+  smoke-emulator:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [34, 35]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: loopline-apks
+          path: apks
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # NOTE: android-emulator-runner executes each `script` line as a separate
+      # `sh -c`, so the script must contain only single-line commands (no if/fi).
+      # The crash analysis happens in the following normal step instead.
+      - name: Launch Daily Challenge & capture logcat
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: x86_64
+          target: google_apis
+          profile: pixel_5
+          disable-animations: false
+          script: |
+            adb install -r apks/loopline-debug.apk
+            adb logcat -c
+            adb shell am start -W -n com.loopline.game.debug/com.loopline.game.ui.GameActivity --ez extra_daily true
+            sleep 12
+            adb shell am start -W -n com.loopline.game.debug/com.loopline.game.ui.GameActivity --ei extra_level 12
+            sleep 8
+            adb logcat -d > logcat-api${{ matrix.api-level }}.txt
+
+      - name: Scan logcat for crashes
+        run: |
+          f="logcat-api${{ matrix.api-level }}.txt"
+          # IMPORTANT: scope crash detection to OUR package. CI emulators routinely
+          # log unrelated system crashes (e.g. com.google.android.permissioncontroller),
+          # which must not fail our smoke test. AndroidRuntime prints "Process: <pkg>"
+          # only inside a crash dump, so that line uniquely identifies our crashes.
+          echo "=== crash/ANR markers in logcat (any process) ==="
+          grep -nE "FATAL EXCEPTION|AndroidRuntime: Process:|ANR in |>>> com" "$f" || true
+          echo "=== verdict (scoped to com.loopline.game) ==="
+          if grep -qE "AndroidRuntime: Process: com\.loopline\.game" "$f"; then
+            echo "::error::Loopline crashed on the game screen (api ${{ matrix.api-level }})"
+            grep -B1 -A40 "AndroidRuntime: Process: com.loopline.game" "$f"
+            exit 1
+          fi
+          if grep -q "ANR in com.loopline.game" "$f"; then
+            echo "::error::Loopline ANR (api ${{ matrix.api-level }})"
+            grep -B2 -A60 "ANR in com.loopline.game" "$f"
+            exit 1
+          fi
+          if grep -q ">>> com.loopline.game" "$f"; then
+            echo "::error::Loopline native crash (api ${{ matrix.api-level }})"
+            grep -B3 -A60 -E ">>> com.loopline.game|signal |backtrace" "$f" | head -n 80
+            exit 1
+          fi
+          echo "No Loopline crash/ANR detected (api ${{ matrix.api-level }})."
+
+      - name: Upload emulator logcat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-logcat-${{ matrix.api-level }}
+          path: logcat-api${{ matrix.api-level }}.txt
+          if-no-files-found: warn

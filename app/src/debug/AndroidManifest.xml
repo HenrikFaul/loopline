@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Debug builds expose GameActivity so automated emulator smoke tests can
+         launch a level / the daily challenge directly via `adb am start`.
+         Release builds keep it un-exported. tools:replace overrides the
+         android:exported value from the main manifest. -->
+    <application>
+        <activity
+            android:name=".ui.GameActivity"
+            android:exported="true"
+            tools:replace="android:exported" />
+    </application>
+
+</manifest>

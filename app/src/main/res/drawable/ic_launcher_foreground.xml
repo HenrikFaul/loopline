@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+
+    <!-- connecting line (single continuous loop) -->
+    <path android:strokeColor="#F4C430" android:strokeWidth="5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M40,44 L70,36 L72,72 L42,66 Z" />
+    <!-- crossing accent line -->
+    <path android:strokeColor="#8A6E1C" android:strokeWidth="4"
+        android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M40,44 L72,72" />
+
+    <!-- nodes -->
+    <path android:fillColor="#F4C430"
+        android:pathData="M34,44 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0z" />
+    <path android:fillColor="#FF7AA2"
+        android:pathData="M64,36 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0z" />
+    <path android:fillColor="#5BE0C6"
+        android:pathData="M66,72 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0z" />
+    <path android:fillColor="#B07CFF"
+        android:pathData="M36,66 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0z" />
+</vector>

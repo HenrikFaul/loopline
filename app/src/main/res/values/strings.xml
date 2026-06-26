@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Loopline</string>
+    <string name="tagline">One Line. Infinite Focus.</string>
+
+    <string name="play">PLAY</string>
+    <string name="best_score">BEST SCORE</string>
+    <string name="levels">Levels</string>
+    <string name="settings">Settings</string>
+    <string name="how_to_play">How to Play</string>
+
+    <string name="level_label">LEVEL %1$d</string>
+    <string name="daily_label">DAILY CHALLENGE</string>
+    <string name="time_label">TIME</string>
+
+    <string name="rule_path">CONNECT EVERY DOT</string>
+    <string name="rule_endpoint">GREEN → PINK · USE EVERY DOT</string>
+    <string name="rule_loop">CLOSE THE LOOP · EVERY DOT</string>
+
+    <string name="level_complete">LEVEL COMPLETE!</string>
+    <string name="new_best">NEW BEST!</string>
+    <string name="next">NEXT</string>
+    <string name="menu">MENU</string>
+    <string name="retry">RETRY</string>
+
+    <string name="hint">Hint</string>
+    <string name="undo">Undo</string>
+    <string name="restart">Restart</string>
+    <string name="back">Back</string>
+
+    <string name="sound">Sound</string>
+    <string name="haptics">Vibration</string>
+    <string name="reduced_motion">Reduced Motion</string>
+    <string name="theme">Line Theme</string>
+    <string name="reset_progress">Reset Progress</string>
+    <string name="about">About</string>
+
+    <string name="locked">Locked</string>
+    <string name="select_level">SELECT LEVEL</string>
+
+    <string name="howto_body">• Tap PLAY to start a level.\n• Drag your finger to draw one continuous line.\n• Connect every dot exactly once.\n• The line cannot cross itself.\n• Drag back over the last dot to undo.\n• Finish fast to earn 3 stars!</string>
+    <string name="about_body">Loopline — One Line. Infinite Focus.\nA minimal one-line puzzle game.\nConnect all the dots with a single continuous line.</string>
+
+    <string name="reset_confirm">Reset all progress, coins and stars?</string>
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
+    <string name="coins_reward">+%1$d</string>
+</resources>
