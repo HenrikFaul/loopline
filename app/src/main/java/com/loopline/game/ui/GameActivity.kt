@@ -66,6 +66,7 @@ class GameActivity : AppCompatActivity(), GameView.Listener {
         binding.gameView.setLineColor(
             ContextCompat.getColor(this, LineThemes.resFor(prefs.themeIndex))
         )
+        binding.gameView.setReducedMotion(prefs.reducedMotion)
 
         binding.tvHintCost.text = "-$HINT_COST"
         binding.btnBack.setOnClickListener { finish() }
@@ -263,6 +264,7 @@ class GameActivity : AppCompatActivity(), GameView.Listener {
         super.onResume()
         haptics.enabled = prefs.hapticsOn
         sound.enabled = prefs.soundOn
+        binding.gameView.setReducedMotion(prefs.reducedMotion)
         if (!completed) resumeTimer()
     }
 

@@ -30,6 +30,7 @@
 
     <string name="sound">Sound</string>
     <string name="haptics">Vibration</string>
+    <string name="reduced_motion">Reduced Motion</string>
     <string name="theme">Line Theme</string>
     <string name="reset_progress">Reset Progress</string>
     <string name="about">About</string>

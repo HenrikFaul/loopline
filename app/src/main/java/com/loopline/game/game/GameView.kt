@@ -64,6 +64,8 @@ class GameView @JvmOverloads constructor(
     private var breathe = 0f
     private var popProgress = 0f
     private var popDot = -1
+    private var attached = false
+    private var reducedMotion = false
 
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -122,6 +124,7 @@ class GameView @JvmOverloads constructor(
         dragging = false
         popDot = -1
         listener?.onProgress(0, level.size)
+        syncBreatheAnimator()
         invalidate()
     }
 
@@ -140,6 +143,7 @@ class GameView @JvmOverloads constructor(
             notifiedComplete = false
             listener?.onUndo()
             listener?.onProgress(m.connectedCount, m.level.size)
+            syncBreatheAnimator()
             invalidate()
         }
     }
@@ -149,6 +153,7 @@ class GameView @JvmOverloads constructor(
         m.reset()
         notifiedComplete = false
         listener?.onProgress(0, m.level.size)
+        syncBreatheAnimator()
         invalidate()
     }
 
@@ -166,18 +171,53 @@ class GameView @JvmOverloads constructor(
         return m.connectedCount
     }
 
+    /** When true, no looping animations run (accessibility + battery; also avoids
+     *  keeping an infinite animator alive while the board is idle). */
+    fun setReducedMotion(enabled: Boolean) {
+        reducedMotion = enabled
+        if (enabled) {
+            breatheAnim.cancel()
+            popAnim.cancel()
+            breathe = 0f
+            popProgress = 0f
+        }
+        syncBreatheAnimator()
+        invalidate()
+    }
+
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        if (!breatheAnim.isStarted) breatheAnim.start()
+        attached = true
+        syncBreatheAnimator()
     }
 
     override fun onDetachedFromWindow() {
+        attached = false
         breatheAnim.cancel()
         popAnim.cancel()
         super.onDetachedFromWindow()
     }
 
+    /**
+     * The breathing pulse only needs to run while the player is mid-solve (a head
+     * dot exists). Keeping it off while the board is idle removes a continuously
+     * running animator — a battery win and a deliberate hardening step for the
+     * device-only idle crash.
+     */
+    private fun syncBreatheAnimator() {
+        val m = model
+        val shouldRun = attached && !reducedMotion &&
+            m != null && m.connectedCount > 0 && !m.isComplete
+        if (shouldRun) {
+            if (!breatheAnim.isStarted) breatheAnim.start()
+        } else {
+            if (breatheAnim.isStarted) breatheAnim.cancel()
+            breathe = 0f
+        }
+    }
+
     private fun startPop() {
+        if (reducedMotion) return
         popAnim.cancel()
         popAnim.start()
     }
@@ -280,6 +320,7 @@ class GameView @JvmOverloads constructor(
                 startPop()
                 listener?.onConnect(m.connectedCount - 1)
                 listener?.onProgress(m.connectedCount, m.level.size)
+                syncBreatheAnimator()
             }
             Move.UNDONE -> afterUndo()
             Move.NONE -> {}
@@ -291,6 +332,7 @@ class GameView @JvmOverloads constructor(
         notifiedComplete = false
         listener?.onUndo()
         listener?.onProgress(m.connectedCount, m.level.size)
+        syncBreatheAnimator()
     }
 
     private fun checkComplete() {
@@ -302,6 +344,7 @@ class GameView @JvmOverloads constructor(
         } else if (!m.isComplete) {
             notifiedComplete = false
         }
+        syncBreatheAnimator()
     }
 
     override fun onDraw(canvas: Canvas) {

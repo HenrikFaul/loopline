@@ -30,6 +30,9 @@ class SettingsActivity : AppCompatActivity() {
         binding.swHaptics.isChecked = prefs.hapticsOn
         binding.swHaptics.setOnCheckedChangeListener { _, checked -> prefs.hapticsOn = checked }
 
+        binding.swReducedMotion.isChecked = prefs.reducedMotion
+        binding.swReducedMotion.setOnCheckedChangeListener { _, checked -> prefs.reducedMotion = checked }
+
         binding.theme0.setOnClickListener { selectTheme(0) }
         binding.theme1.setOnClickListener { selectTheme(1) }
         binding.theme2.setOnClickListener { selectTheme(2) }
@@ -73,6 +76,7 @@ class SettingsActivity : AppCompatActivity() {
                 prefs.resetAll()
                 binding.swSound.isChecked = prefs.soundOn
                 binding.swHaptics.isChecked = prefs.hapticsOn
+                binding.swReducedMotion.isChecked = prefs.reducedMotion
                 updateThemeChecks()
                 Toast.makeText(this, "Progress reset", Toast.LENGTH_SHORT).show()
             }

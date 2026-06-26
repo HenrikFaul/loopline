@@ -25,6 +25,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_HAPTICS, true)
         set(value) = sp.edit().putBoolean(KEY_HAPTICS, value).apply()
 
+    /** Accessibility: disables looping animations when true. */
+    var reducedMotion: Boolean
+        get() = sp.getBoolean(KEY_REDUCED_MOTION, false)
+        set(value) = sp.edit().putBoolean(KEY_REDUCED_MOTION, value).apply()
+
     /** 0 = Amber, 1 = Pink, 2 = Teal. */
     var themeIndex: Int
         get() = sp.getInt(KEY_THEME, 0)
@@ -89,6 +94,7 @@ class Prefs(context: Context) {
         private const val KEY_MAX_UNLOCKED = "max_unlocked"
         private const val KEY_SOUND = "sound_on"
         private const val KEY_HAPTICS = "haptics_on"
+        private const val KEY_REDUCED_MOTION = "reduced_motion"
         private const val KEY_THEME = "theme_index"
         private const val KEY_TOTAL_STARS = "total_stars"
         private const val KEY_LAST_CRASH = "last_crash"

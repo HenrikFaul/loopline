@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Required so Vibrator.vibrate() does not throw SecurityException on connect. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application
         android:name=".LooplineApp"
         android:allowBackup="true"

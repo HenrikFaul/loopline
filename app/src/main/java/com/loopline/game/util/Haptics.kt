@@ -24,14 +24,21 @@ class Haptics(context: Context) {
     /** A tiny tick used when a dot is connected or undone. */
     fun tick() {
         if (!canVibrate()) return
-        vibrator?.vibrate(VibrationEffect.createOneShot(12L, 70))
+        try {
+            vibrator?.vibrate(VibrationEffect.createOneShot(12L, 70))
+        } catch (_: Throwable) {
+            // Some OEMs restrict vibration; never crash gameplay over haptics.
+        }
     }
 
     /** A stronger confirmation used on level completion. */
     fun success() {
         if (!canVibrate()) return
-        val timings = longArrayOf(0, 30, 60, 50)
-        val amps = intArrayOf(0, 120, 0, 200)
-        vibrator?.vibrate(VibrationEffect.createWaveform(timings, amps, -1))
+        try {
+            val timings = longArrayOf(0, 30, 60, 50)
+            val amps = intArrayOf(0, 120, 0, 200)
+            vibrator?.vibrate(VibrationEffect.createWaveform(timings, amps, -1))
+        } catch (_: Throwable) {
+        }
     }
 }
